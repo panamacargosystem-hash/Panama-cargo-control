@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AirCargo Pro - Sistema de Gestión</title>
@@ -34,36 +35,40 @@
         .toast-warning { background:#f59e0b; }
         .hidden { display:none !important; }
         .spy-badge { position:fixed; top:10px; right:10px; background:#ef4444; color:white; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700; z-index:9999; display:none; }
-        /* Spinner de carga */
         .spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,0.4); border-top-color:white; border-radius:50%; animation:spin 0.7s linear infinite; }
         @keyframes spin { to { transform:rotate(360deg); } }
-        /* Paginación */
         .page-btn { padding:6px 12px; border:1px solid #e2e8f0; border-radius:6px; font-size:13px; cursor:pointer; transition:all 0.15s; background:white; }
         .page-btn:hover { background:#f0f9ff; border-color:#93c5fd; }
         .page-btn.active { background:#2563eb; color:white; border-color:#2563eb; }
         .page-btn:disabled { opacity:0.4; cursor:not-allowed; }
-        /* Historial badge */
         .history-icon { cursor:pointer; color:#8b5cf6; }
         .history-icon:hover { color:#6d28d9; }
-        /* Tooltip de sesión */
         .session-bar { font-size:11px; background:#fef3c7; color:#92400e; padding:2px 10px; text-align:center; }
+        #loadingOverlay { position:fixed; inset:0; background:rgba(15,23,42,0.85); z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; }
+        #loadingOverlay p { color:white; font-size:14px; font-weight:500; }
+        .db-spinner { width:40px; height:40px; border:3px solid rgba(255,255,255,0.2); border-top-color:#60a5fa; border-radius:50%; animation:spin 0.8s linear infinite; }
     </style>
     <base target="_blank">
 </head>
 <body class="text-slate-800">
-
+ 
+<!-- Loading overlay mientras carga Firebase -->
+<div id="loadingOverlay">
+    <div class="db-spinner"></div>
+    <p><i class="fas fa-cloud mr-2"></i>Conectando con la nube...</p>
+</div>
+ 
 <div id="spyBadge" class="spy-badge"><i class="fas fa-eye mr-1"></i>MODO SUPERVISOR</div>
-
-<!-- Barra de sesión -->
+ 
 <div id="sessionBar" class="session-bar hidden">
     <i class="fas fa-clock mr-1"></i>
     Sesión activa — tiempo restante: <span id="sessionTimer">--:--</span>
     &nbsp;|&nbsp;
     <button onclick="renewSession()" class="underline font-semibold">Renovar sesión</button>
 </div>
-
+ 
 <!-- Login Screen -->
-<div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+<div id="loginScreen" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
     <div class="glass p-8 rounded-2xl shadow-2xl w-full max-w-md mx-4">
         <div class="text-center mb-8">
             <div class="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl shadow-lg mb-4 logo-plane">
@@ -71,7 +76,7 @@
             </div>
             <h1 class="text-2xl font-bold text-slate-800">AirCargo Pro</h1>
             <p class="text-sm text-slate-500 mt-1">Sistema de Gestión de Paquetes Aeroportuarios</p>
-            <p class="text-xs text-amber-600 mt-2 font-medium">Versión 2.0 — Sistema Seguro</p>
+            <p class="text-xs text-amber-600 mt-2 font-medium">Versión 3.0 — Nube Firebase</p>
         </div>
         <form id="loginForm" class="space-y-4">
             <div>
@@ -100,11 +105,11 @@
         </form>
         <div class="mt-6 text-center text-xs text-slate-400">
             <p>© 2026 AirCargo Pro. Todos los derechos reservados.</p>
-            <p class="mt-1">Sistema de Gestión de Bodegas Aeroportuarias</p>
+            <p class="mt-1"><i class="fas fa-cloud text-blue-400 mr-1"></i>Datos sincronizados en la nube</p>
         </div>
     </div>
 </div>
-
+ 
 <!-- Main App -->
 <div id="mainApp" class="hidden min-h-screen flex flex-col">
     <header class="glass-dark text-white shadow-lg z-40">
@@ -117,6 +122,7 @@
                 </div>
             </div>
             <div class="flex items-center space-x-3">
+                <span class="text-xs text-green-300"><i class="fas fa-circle text-green-400 mr-1" style="font-size:8px"></i>Nube activa</span>
                 <button id="adminPanelBtn" class="hidden px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition-colors" onclick="openAdminPanel()">
                     <i class="fas fa-users-cog mr-1"></i>Panel Admin
                 </button>
@@ -129,7 +135,7 @@
             </div>
         </div>
     </header>
-
+ 
     <div class="flex-1 flex overflow-hidden">
         <aside class="w-64 glass border-r border-slate-200 flex flex-col">
             <nav class="p-4 space-y-1 flex-1">
@@ -147,9 +153,8 @@
                 </button>
             </nav>
         </aside>
-
+ 
         <main class="flex-1 overflow-auto p-6">
-
             <!-- Dashboard -->
             <div id="dashboardView" class="space-y-6">
                 <div class="flex items-center justify-between">
@@ -195,7 +200,7 @@
                     </div>
                 </div>
             </div>
-
+ 
             <!-- Package Manager -->
             <div id="packageManagerView" class="hidden space-y-4">
                 <div class="flex items-center justify-between">
@@ -237,14 +242,13 @@
                             <tbody id="packagesTableBody"></tbody>
                         </table>
                     </div>
-                    <!-- Paginación -->
                     <div class="px-4 py-3 border-t border-slate-200 flex items-center justify-between bg-slate-50">
                         <span class="text-sm text-slate-500" id="paginationInfo">—</span>
                         <div class="flex items-center gap-2" id="paginationControls"></div>
                     </div>
                 </div>
             </div>
-
+ 
             <!-- QR Scanner -->
             <div id="scannerView" class="hidden space-y-6">
                 <h2 class="text-2xl font-bold">Escanear / Buscar Paquete</h2>
@@ -258,7 +262,7 @@
                 </div>
                 <div id="scanResult" class="hidden glass rounded-xl p-6 border border-slate-200 max-w-2xl mx-auto"></div>
             </div>
-
+ 
             <!-- Reports -->
             <div id="reportsView" class="hidden space-y-6">
                 <h2 class="text-2xl font-bold">Reportes y Estadísticas</h2>
@@ -273,13 +277,12 @@
                     </div>
                 </div>
             </div>
-
         </main>
     </div>
 </div>
-
+ 
 <!-- ==================== MODALES ==================== -->
-
+ 
 <!-- Nuevo Paquete -->
 <div id="newPackageModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="glass bg-white rounded-2xl w-full max-w-2xl">
@@ -338,7 +341,7 @@
         </form>
     </div>
 </div>
-
+ 
 <!-- QR Modal -->
 <div id="qrModal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
     <div class="glass bg-white rounded-2xl w-full max-w-md text-center p-6">
@@ -356,7 +359,7 @@
         </div>
     </div>
 </div>
-
+ 
 <!-- Admin Panel -->
 <div id="adminPanelModal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
     <div class="glass bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
@@ -384,7 +387,7 @@
                 <tbody id="adminUsersTable"></tbody>
             </table>
             <div class="border-t pt-6">
-                <h4 class="font-semibold text-lg text-red-600 mb-4"><i class="fas fa-eye mr-2"></i>Vista Global — Spy Mode</h4>
+                <h4 class="font-semibold text-lg text-red-600 mb-4"><i class="fas fa-eye mr-2"></i>Vista Global — Todos los Paquetes</h4>
                 <table class="excel-grid">
                     <thead><tr><th>ID</th><th>Origen</th><th>Destino</th><th>Estado</th><th>Fecha</th><th>Creado por</th></tr></thead>
                     <tbody id="spyDataTableBody"></tbody>
@@ -393,7 +396,7 @@
         </div>
     </div>
 </div>
-
+ 
 <!-- Crear Usuario -->
 <div id="createUserModal" class="hidden fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
     <div class="glass bg-white rounded-2xl w-full max-w-md p-6">
@@ -428,16 +431,14 @@
         </form>
     </div>
 </div>
-
+ 
 <!-- PDF Modal -->
 <div id="pdfModal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
     <div class="bg-white rounded-lg w-full max-w-4xl h-[90vh] flex flex-col">
         <div class="px-6 py-3 border-b flex justify-between items-center">
             <h3 class="font-semibold"><i class="fas fa-file-pdf mr-2 text-red-500"></i>Vista Previa del Documento</h3>
             <div class="flex space-x-2">
-                <button onclick="downloadPDF()" class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-                    <i class="fas fa-download mr-1"></i>Descargar PDF
-                </button>
+                <button onclick="downloadPDF()" class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"><i class="fas fa-download mr-1"></i>Descargar PDF</button>
                 <button onclick="closePDFModal()" class="px-3 py-1.5 border rounded text-sm hover:bg-slate-50">Cerrar</button>
             </div>
         </div>
@@ -446,7 +447,7 @@
         </div>
     </div>
 </div>
-
+ 
 <!-- Editar Estado -->
 <div id="editStatusModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="glass bg-white rounded-2xl w-full max-w-md">
@@ -461,10 +462,7 @@
             </div>
             <div class="flex items-center gap-3 bg-amber-50 p-3 rounded-lg border border-amber-200">
                 <i class="fas fa-arrow-right text-amber-600"></i>
-                <div>
-                    <p class="text-xs text-slate-500">Estado actual</p>
-                    <p class="font-semibold text-sm" id="currentStatusLabel">—</p>
-                </div>
+                <div><p class="text-xs text-slate-500">Estado actual</p><p class="font-semibold text-sm" id="currentStatusLabel">—</p></div>
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-2">Nuevo Estado</label>
@@ -481,14 +479,12 @@
             </div>
             <div class="flex space-x-3 pt-2">
                 <button type="button" onclick="closeEditStatusModal()" class="flex-1 px-4 py-2 border rounded-lg text-sm hover:bg-slate-50">Cancelar</button>
-                <button type="button" onclick="saveNewStatus()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-                    <i class="fas fa-save mr-1"></i>Guardar Cambio
-                </button>
+                <button type="button" onclick="saveNewStatus()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"><i class="fas fa-save mr-1"></i>Guardar Cambio</button>
             </div>
         </div>
     </div>
 </div>
-
+ 
 <!-- Historial Modal -->
 <div id="historialModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="glass bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
@@ -502,114 +498,123 @@
         </div>
     </div>
 </div>
-
+ 
 <!-- ==================== SCRIPTS ==================== -->
 <script>
-
 // ============================================================
-// CONFIGURACIÓN Y CONSTANTES
+// FIREBASE INIT
 // ============================================================
-
-// La llave maestra se deriva dinámicamente — no expuesta directamente en el código
-const _k = () => ['Air','Cargo','Pro','2026'].join('_');
-
-// Expiración de sesión: 8 horas en ms
+const firebaseConfig = {
+    apiKey: "AIzaSyCLN-3F86ftTkxeRht5T9MxuVBMh_xmp2Y",
+    authDomain: "aircargo-pro.firebaseapp.com",
+    projectId: "aircargo-pro",
+    storageBucket: "aircargo-pro.firebasestorage.app",
+    messagingSenderId: "798440296750",
+    appId: "1:798440296750:web:5f6ca9eabd594d5c222abf"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+ 
+// ============================================================
+// HASH DE CONTRASEÑAS (sin CryptoJS)
+// ============================================================
+function hashPassword(password) {
+    const str = password + 'AirCargo_Pro_2026';
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) {
+        const ch = str.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1>>>16), 2246822507) ^ Math.imul(h2 ^ (h2>>>13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2>>>16), 2246822507) ^ Math.imul(h1 ^ (h1>>>13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1>>>0)).toString(16).padStart(14,'0');
+}
+ 
+// ============================================================
+// FIRESTORE — USUARIOS
+// ============================================================
+async function saveUser(data) {
+    await db.collection('users').doc(data.username).set(data);
+}
+async function getUser(username) {
+    const doc = await db.collection('users').doc(username).get();
+    return doc.exists ? doc.data() : null;
+}
+async function getAllUsers() {
+    const snap = await db.collection('users').get();
+    return snap.docs.map(d => d.data());
+}
+async function updateUser(username, updates) {
+    await db.collection('users').doc(username).update(updates);
+}
+async function deleteUser(username) {
+    await db.collection('users').doc(username).delete();
+}
+ 
+// ============================================================
+// FIRESTORE — PAQUETES
+// ============================================================
+async function savePackage(pkg) {
+    await db.collection('packages').doc(pkg.id).set(pkg);
+}
+async function getAllPackages() {
+    const snap = await db.collection('packages').orderBy('timestamp','desc').get();
+    return snap.docs.map(d => d.data());
+}
+async function updatePackage(id, updates) {
+    await db.collection('packages').doc(id).update(updates);
+}
+async function deletePackageDB(id) {
+    await db.collection('packages').doc(id).delete();
+}
+async function getPackageById(id) {
+    const doc = await db.collection('packages').doc(id).get();
+    return doc.exists ? doc.data() : null;
+}
+ 
+// ============================================================
+// CONSTANTES Y ESTADO
+// ============================================================
 const SESSION_DURATION_MS = 8 * 60 * 60 * 1000;
-const SESSION_WARNING_MS  = 15 * 60 * 1000; // aviso 15 min antes
-
+const SESSION_WARNING_MS  = 15 * 60 * 1000;
+ 
 const AppState = {
     currentUser: null,
     pagination: { page: 1, perPage: 20, total: 0 },
     sessionInterval: null,
-    sessionExpiry: null
+    sessionExpiry: null,
+    lastQRData: null
 };
-
-// ============================================================
-// ENCRIPTACIÓN AES-256 (usada para contraseñas en storage)
-// ============================================================
-function hashPassword(password) {
-    // SHA-256 para almacenar contraseñas — nunca texto plano
-    return CryptoJS.SHA256(password + _k()).toString();
-}
-
-function encrypt(text) {
-    if (!text) return '';
-    try { return CryptoJS.AES.encrypt(text, _k()).toString(); }
-    catch(e) { return ''; }
-}
-
-function decrypt(enc) {
-    if (!enc) return '';
-    try { return CryptoJS.AES.decrypt(enc, _k()).toString(CryptoJS.enc.Utf8); }
-    catch(e) { return ''; }
-}
-
-// ============================================================
-// ALMACENAMIENTO SEGURO
-// ============================================================
-function saveToStorage(key, data) {
-    try { localStorage.setItem(key, JSON.stringify(data)); return true; }
-    catch(e) {
-        if (e.name === 'QuotaExceededError') showToast('Almacenamiento lleno. Exporta y limpia datos.', 'error');
-        else showToast('Error al guardar datos.', 'error');
-        return false;
-    }
-}
-
-function getFromStorage(key) {
-    try {
-        const item = localStorage.getItem(key);
-        if (!item || item === 'null' || item === 'undefined') return null;
-        return JSON.parse(item);
-    } catch(e) {
-        console.error('Storage corrupto para', key, e);
-        return null;
-    }
-}
-
+ 
 // ============================================================
 // INICIALIZACIÓN
 // ============================================================
-document.addEventListener('DOMContentLoaded', () => {
-    if (!window.localStorage) {
-        alert('Tu navegador no soporta localStorage. Usa Chrome, Edge u Opera moderno.');
-        return;
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // Crear Admin1 si no existe
+        const admin = await getUser('Admin1');
+        if (!admin) {
+            await saveUser({
+                username: 'Admin1',
+                passwordHash: hashPassword('DontKnowMe'),
+                role: 'superadmin',
+                parent: null,
+                createdAt: new Date().toISOString(),
+                active: true
+            });
+            console.log('✅ Admin1 creado en Firestore');
+        }
+    } catch(e) {
+        console.error('Error init:', e);
+        showToast('Error conectando con la nube. Verifica tu internet.', 'error');
     }
-    initializeSystem();
+ 
     setupEventListeners();
     checkExistingSession();
+    document.getElementById('loadingOverlay').style.display = 'none';
 });
-
-function initializeSystem() {
-    const users = getFromStorage('aircargo_users');
-    if (!users || users.length === 0) {
-        const admin1 = {
-            username: 'Admin1',
-            passwordHash: hashPassword('DontKnowMe'),
-            role: 'superadmin',
-            parent: null,
-            createdAt: new Date().toISOString(),
-            active: true
-        };
-        saveToStorage('aircargo_users', [admin1]);
-        saveToStorage('aircargo_packages', []);
-        console.log('✅ Sistema inicializado. Usuario: Admin1 / DontKnowMe');
-    }
-}
-
-// Ctrl+Shift+R → reinicializar sistema
-document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.shiftKey && e.key === 'R') {
-        e.preventDefault();
-        if (confirm('¿Reinicializar sistema? Se PERDERÁN todos los datos.')) {
-            ['aircargo_users','aircargo_packages','aircargo_session'].forEach(k => localStorage.removeItem(k));
-            initializeSystem();
-            alert('Sistema reinicializado. Usa Admin1 / DontKnowMe');
-            location.reload();
-        }
-    }
-});
-
+ 
 function setupEventListeners() {
     document.getElementById('loginForm').addEventListener('submit', handleLogin);
     document.getElementById('packageForm').addEventListener('submit', handleNewPackage);
@@ -620,27 +625,23 @@ function setupEventListeners() {
         if (show) loadParentAdmins();
     });
 }
-
+ 
 // ============================================================
-// SESIÓN CON EXPIRACIÓN
+// SESIÓN
 // ============================================================
 function startSessionTimer(expiryTimestamp) {
     AppState.sessionExpiry = expiryTimestamp;
     clearInterval(AppState.sessionInterval);
-
     const bar = document.getElementById('sessionBar');
     const timerEl = document.getElementById('sessionTimer');
-
     AppState.sessionInterval = setInterval(() => {
         const remaining = AppState.sessionExpiry - Date.now();
         if (remaining <= 0) {
             clearInterval(AppState.sessionInterval);
-            showToast('Sesión expirada. Por favor inicia sesión nuevamente.', 'warning');
+            showToast('Sesión expirada.', 'warning');
             setTimeout(logout, 2000);
             return;
         }
-
-        // Mostrar barra de aviso 15 min antes
         if (remaining <= SESSION_WARNING_MS) {
             bar.classList.remove('hidden');
             const mins = Math.floor(remaining / 60000);
@@ -651,145 +652,114 @@ function startSessionTimer(expiryTimestamp) {
         }
     }, 1000);
 }
-
+ 
 function renewSession() {
     const newExpiry = Date.now() + SESSION_DURATION_MS;
     AppState.sessionExpiry = newExpiry;
-
-    const session = getFromStorage('aircargo_session');
-    if (session) {
-        session.expiresAt = newExpiry;
-        saveToStorage('aircargo_session', session);
-    }
-
+    const session = JSON.parse(localStorage.getItem('aircargo_session') || '{}');
+    session.expiresAt = newExpiry;
+    localStorage.setItem('aircargo_session', JSON.stringify(session));
     document.getElementById('sessionBar').classList.add('hidden');
     showToast('Sesión renovada por 8 horas', 'success');
 }
-
+ 
 // ============================================================
 // LOGIN
 // ============================================================
-function handleLogin(e) {
+async function handleLogin(e) {
     e.preventDefault();
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
-    const errorDiv = document.getElementById('loginError');
     const btn = document.getElementById('loginBtn');
-
-    // Spinner de carga
     btn.innerHTML = '<span class="spinner"></span> Verificando...';
     btn.disabled = true;
-
-    setTimeout(() => {
-        try {
-            const users = getFromStorage('aircargo_users') || [];
-            if (users.length === 0) {
-                showLoginError('Sistema no inicializado. Presiona Ctrl+Shift+R');
-                return;
-            }
-
-            const user = users.find(u => u.username === username);
-            if (!user) { showLoginError('Usuario no encontrado'); return; }
-
-            // Verificar contraseña — soporta hash (nuevo) y texto plano (migración)
-            const inputHash = hashPassword(password);
-            const validHash  = user.passwordHash && user.passwordHash === inputHash;
-            const validPlain = !user.passwordHash && user.password === password;
-
-            if (!validHash && !validPlain) { showLoginError('Contraseña incorrecta'); return; }
-            if (!user.active) { showLoginError('Usuario desactivado. Contacta al administrador.'); return; }
-
-            // Migrar contraseña a hash si aún estaba en texto plano
-            if (validPlain) {
-                user.passwordHash = inputHash;
-                delete user.password;
-                saveToStorage('aircargo_users', users);
-            }
-
-            errorDiv.classList.add('hidden');
-            const expiresAt = Date.now() + SESSION_DURATION_MS;
-            saveToStorage('aircargo_session', {
-                username: user.username,
-                role: user.role,
-                parent: user.parent,
-                loginTime: new Date().toISOString(),
-                expiresAt
-            });
-            AppState.currentUser = user;
-            showToast(`Bienvenido, ${user.username}`, 'success');
-            showMainApp();
-            startSessionTimer(expiresAt);
-
-        } catch(err) {
-            showLoginError('Error interno. Recarga la página.');
-            console.error(err);
-        } finally {
-            btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Iniciar Sesión';
-            btn.disabled = false;
-        }
-    }, 400);
+ 
+    try {
+        const user = await getUser(username);
+        if (!user) { showLoginError('Usuario no encontrado'); return; }
+        if (user.passwordHash !== hashPassword(password)) { showLoginError('Contraseña incorrecta'); return; }
+        if (!user.active) { showLoginError('Usuario desactivado. Contacta al administrador.'); return; }
+ 
+        document.getElementById('loginError').classList.add('hidden');
+        const expiresAt = Date.now() + SESSION_DURATION_MS;
+        localStorage.setItem('aircargo_session', JSON.stringify({
+            username: user.username, role: user.role,
+            parent: user.parent, expiresAt
+        }));
+        AppState.currentUser = user;
+        showToast(`Bienvenido, ${user.username}`, 'success');
+        showMainApp();
+        startSessionTimer(expiresAt);
+    } catch(err) {
+        showLoginError('Error de conexión. Verifica tu internet.');
+        console.error(err);
+    } finally {
+        btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Iniciar Sesión';
+        btn.disabled = false;
+    }
 }
-
+ 
 function showLoginError(msg) {
-    const div = document.getElementById('loginError');
     document.getElementById('errorMessage').textContent = msg;
-    div.classList.remove('hidden');
+    document.getElementById('loginError').classList.remove('hidden');
     const btn = document.getElementById('loginBtn');
     btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Iniciar Sesión';
     btn.disabled = false;
 }
-
+ 
 function checkExistingSession() {
-    const session = getFromStorage('aircargo_session');
-    if (session && session.username) {
-        // Verificar expiración
-        if (session.expiresAt && Date.now() > session.expiresAt) {
+    try {
+        const raw = localStorage.getItem('aircargo_session');
+        if (!raw) { document.getElementById('loginScreen').classList.remove('hidden'); return; }
+        const session = JSON.parse(raw);
+        if (!session.username || (session.expiresAt && Date.now() > session.expiresAt)) {
             localStorage.removeItem('aircargo_session');
             document.getElementById('loginScreen').classList.remove('hidden');
             return;
         }
-        const users = getFromStorage('aircargo_users') || [];
-        const user = users.find(u => u.username === session.username);
-        if (user && user.active) {
-            AppState.currentUser = user;
-            showMainApp();
-            startSessionTimer(session.expiresAt || Date.now() + SESSION_DURATION_MS);
-            return;
-        }
+        // Restaurar sesión desde Firestore
+        getUser(session.username).then(user => {
+            if (user && user.active) {
+                AppState.currentUser = user;
+                showMainApp();
+                startSessionTimer(session.expiresAt || Date.now() + SESSION_DURATION_MS);
+            } else {
+                localStorage.removeItem('aircargo_session');
+                document.getElementById('loginScreen').classList.remove('hidden');
+            }
+        });
+    } catch(e) {
+        document.getElementById('loginScreen').classList.remove('hidden');
     }
-    document.getElementById('loginScreen').classList.remove('hidden');
 }
-
+ 
 function logout() {
     clearInterval(AppState.sessionInterval);
     localStorage.removeItem('aircargo_session');
     AppState.currentUser = null;
-    AppState.sessionExpiry = null;
     document.getElementById('mainApp').classList.add('hidden');
     document.getElementById('sessionBar').classList.add('hidden');
     document.getElementById('loginScreen').classList.remove('hidden');
     document.getElementById('loginForm').reset();
     document.getElementById('loginError').classList.add('hidden');
-    // Ocultar spy badge
     document.getElementById('spyBadge').style.display = 'none';
     document.getElementById('adminPanelBtn').classList.add('hidden');
     showToast('Sesión cerrada', 'info');
 }
-
+ 
 function togglePasswordVisibility() {
     const input = document.getElementById('password');
     const icon  = document.getElementById('eyeIcon');
-    if (input.type === 'password') { input.type = 'text'; icon.className = 'fas fa-eye-slash'; }
-    else { input.type = 'password'; icon.className = 'fas fa-eye'; }
+    input.type = input.type === 'password' ? 'text' : 'password';
+    icon.className = input.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
 }
-
 function toggleNewPwd() {
     const input = document.getElementById('newPassword');
     const icon  = document.getElementById('newPwdEye');
-    if (input.type === 'password') { input.type = 'text'; icon.className = 'fas fa-eye-slash text-sm'; }
-    else { input.type = 'password'; icon.className = 'fas fa-eye text-sm'; }
+    input.type = input.type === 'password' ? 'text' : 'password';
+    icon.className = (input.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash') + ' text-sm';
 }
-
+ 
 // ============================================================
 // INTERFAZ PRINCIPAL
 // ============================================================
@@ -806,16 +776,15 @@ function showMainApp() {
     }
     showDashboard();
 }
-
-function showDashboard()       { switchView('dashboardView',       'navDashboard');   loadDashboardData(); }
-function showPackageManager()  { switchView('packageManagerView',  'navPackages');    loadPackagesTable(); }
-function showQRScanner()       { switchView('scannerView',         'navScanner'); }
-function showReports()         { switchView('reportsView',         'navReports');     loadCharts(); }
-
+ 
+function showDashboard()      { switchView('dashboardView',      'navDashboard');  loadDashboardData(); }
+function showPackageManager() { switchView('packageManagerView', 'navPackages');   loadPackagesTable(); }
+function showQRScanner()      { switchView('scannerView',        'navScanner'); }
+function showReports()        { switchView('reportsView',        'navReports');    loadCharts(); }
+ 
 function switchView(viewId, navId) {
     ['dashboardView','packageManagerView','scannerView','reportsView'].forEach(id =>
-        document.getElementById(id).classList.add('hidden')
-    );
+        document.getElementById(id).classList.add('hidden'));
     document.getElementById(viewId).classList.remove('hidden');
     ['navDashboard','navPackages','navScanner','navReports'].forEach(id => {
         const el = document.getElementById(id);
@@ -828,19 +797,18 @@ function switchView(viewId, navId) {
         }
     });
 }
-
+ 
 // ============================================================
 // DASHBOARD
 // ============================================================
-function loadDashboardData() {
-    let packages = getVisiblePackages();
+async function loadDashboardData() {
+    const packages = await getVisiblePackages();
     document.getElementById('totalPackages').textContent = `${packages.length} paquetes`;
     document.getElementById('statBodega').textContent    = packages.filter(p => p.estado === 'En Bodega').length;
     document.getElementById('statTransito').textContent  = packages.filter(p => p.estado === 'En Tránsito').length;
     document.getElementById('statEntregados').textContent= packages.filter(p => p.estado === 'Entregado').length;
     document.getElementById('statRetrasados').textContent= packages.filter(p => p.estado === 'Retrasado').length;
-
-    // Últimos 10 más recientes
+ 
     const recent = [...packages].sort((a,b) => b.timestamp - a.timestamp).slice(0, 10);
     const tbody = document.getElementById('recentTableBody');
     tbody.innerHTML = '';
@@ -851,50 +819,46 @@ function loadDashboardData() {
     recent.forEach(pkg => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td class="font-mono text-xs text-blue-600 cursor-pointer hover:underline" onclick="openEditStatusModal('${pkg.id}')" title="Ver detalle">${pkg.id.substring(0,18)}…</td>
-            <td>${pkg.origen}</td>
-            <td>${pkg.destino}</td>
+            <td class="font-mono text-xs text-blue-600 cursor-pointer hover:underline" onclick="openEditStatusModal('${pkg.id}')">${pkg.id.substring(0,18)}…</td>
+            <td>${pkg.origen}</td><td>${pkg.destino}</td>
             <td><span class="px-2 py-0.5 rounded text-xs font-medium ${getStatusClass(pkg.estado)}">${pkg.estado}</span></td>
             <td class="text-xs text-slate-500">${new Date(pkg.date).toLocaleString('es-ES')}</td>
-            <td class="text-xs text-slate-500">${pkg.createdBy}</td>
-        `;
+            <td class="text-xs text-slate-500">${pkg.createdBy}</td>`;
         tbody.appendChild(tr);
     });
 }
-
-// Clic en tarjeta del dashboard → ir a gestión con filtro
-function filterByStatus(status) {
+ 
+async function filterByStatus(status) {
     showPackageManager();
     document.getElementById('statusFilter').value = status;
-    filterPackages();
+    await filterPackages();
 }
-
-function getVisiblePackages() {
-    const all = getFromStorage('aircargo_packages') || [];
+ 
+async function getVisiblePackages() {
+    const all = await getAllPackages();
     const user = AppState.currentUser;
     if (user.role === 'superadmin') return all;
     if (user.role === 'admin') return all.filter(p => p.createdBy === user.username || p.parentAdmin === user.username);
     return all.filter(p => p.createdBy === user.username);
 }
-
+ 
 function getStatusClass(status) {
-    return { 'En Bodega':'status-en-bodega', 'En Tránsito':'status-en-transito', 'Entregado':'status-entregado', 'Retrasado':'status-retrasado' }[status] || 'bg-gray-100';
+    return { 'En Bodega':'status-en-bodega','En Tránsito':'status-en-transito','Entregado':'status-entregado','Retrasado':'status-retrasado' }[status] || 'bg-gray-100';
 }
-
+ 
 // ============================================================
 // GESTIÓN DE PAQUETES
 // ============================================================
-function handleNewPackage(e) {
+async function handleNewPackage(e) {
     e.preventDefault();
     const btn = document.getElementById('savePackageBtn');
     btn.innerHTML = '<span class="spinner"></span> Guardando…';
     btn.disabled = true;
-
-    setTimeout(() => {
+ 
+    try {
         const fd = new FormData(e.target);
         const timestamp = Date.now();
         const id = `AC${timestamp}${Math.random().toString(36).substring(2,8).toUpperCase()}`;
-
         const pkg = {
             id,
             origen:      fd.get('origen').trim().toUpperCase(),
@@ -916,62 +880,47 @@ function handleNewPackage(e) {
                 usuario: AppState.currentUser.username
             }]
         };
-
-        const packages = getFromStorage('aircargo_packages') || [];
-        packages.push(pkg);
-
-        if (saveToStorage('aircargo_packages', packages)) {
-            AppState.lastQRData = pkg;
-            closeNewPackageModal();
-            e.target.reset();
-            showQRModal(pkg);
-            showToast('Paquete registrado exitosamente', 'success');
-            loadDashboardData();
-            if (!document.getElementById('packageManagerView').classList.contains('hidden')) loadPackagesTable();
-        }
-
+        await savePackage(pkg);
+        AppState.lastQRData = pkg;
+        closeNewPackageModal();
+        e.target.reset();
+        showQRModal(pkg);
+        showToast('Paquete registrado exitosamente', 'success');
+        loadDashboardData();
+        if (!document.getElementById('packageManagerView').classList.contains('hidden')) loadPackagesTable();
+    } catch(err) {
+        showToast('Error al guardar. Verifica tu conexión.', 'error');
+        console.error(err);
+    } finally {
         btn.innerHTML = '<i class="fas fa-save"></i> Guardar y Generar QR';
         btn.disabled = false;
-    }, 300);
+    }
 }
-
-function loadPackagesTable() {
-    let packages = getVisiblePackages();
-
-    // Filtros
+ 
+async function loadPackagesTable() {
+    let packages = await getVisiblePackages();
     const search = document.getElementById('searchFilter').value.toLowerCase().trim();
     const status = document.getElementById('statusFilter').value;
-
     if (search) packages = packages.filter(p =>
-        p.id.toLowerCase().includes(search) ||
-        p.origen.toLowerCase().includes(search) ||
-        p.destino.toLowerCase().includes(search) ||
-        (p.descripcion && p.descripcion.toLowerCase().includes(search))
-    );
+        p.id.toLowerCase().includes(search) || p.origen.toLowerCase().includes(search) ||
+        p.destino.toLowerCase().includes(search) || (p.descripcion && p.descripcion.toLowerCase().includes(search)));
     if (status) packages = packages.filter(p => p.estado === status);
-
-    // Ordenar por más reciente
     packages.sort((a,b) => b.timestamp - a.timestamp);
-
+ 
     AppState.pagination.total = packages.length;
-    document.getElementById('filteredCount').textContent =
-        search || status ? `${packages.length} resultado(s)` : '';
-
-    // Paginación
+    document.getElementById('filteredCount').textContent = (search || status) ? `${packages.length} resultado(s)` : '';
+ 
     const { page, perPage, total } = AppState.pagination;
     const totalPages = Math.max(1, Math.ceil(total / perPage));
     if (page > totalPages) AppState.pagination.page = totalPages;
     const start = (AppState.pagination.page - 1) * perPage;
     const paginated = packages.slice(start, start + perPage);
-
-    // Tabla
+ 
     const tbody = document.getElementById('packagesTableBody');
     tbody.innerHTML = '';
     if (paginated.length === 0) {
         tbody.innerHTML = `<tr><td colspan="8" class="text-center py-10 text-slate-400">
-            <i class="fas fa-box-open text-4xl mb-3 block text-slate-300"></i>
-            No se encontraron paquetes
-        </td></tr>`;
+            <i class="fas fa-box-open text-4xl mb-3 block text-slate-300"></i>No se encontraron paquetes</td></tr>`;
     } else {
         paginated.forEach((pkg, i) => {
             const histCount = pkg.historial ? pkg.historial.length : 0;
@@ -979,153 +928,113 @@ function loadPackagesTable() {
             tr.innerHTML = `
                 <td class="text-center text-slate-400">${start+i+1}</td>
                 <td class="font-mono text-xs text-blue-700">${pkg.id}</td>
-                <td>${pkg.origen}</td>
-                <td>${pkg.destino}</td>
+                <td>${pkg.origen}</td><td>${pkg.destino}</td>
                 <td class="text-right">${pkg.peso} kg</td>
                 <td><span class="px-2 py-0.5 rounded text-xs font-medium ${getStatusClass(pkg.estado)}">${pkg.estado}</span></td>
                 <td class="text-xs text-slate-500">${new Date(pkg.date).toLocaleString('es-ES')}</td>
                 <td class="text-center space-x-1">
                     <button onclick="showPackageQR('${pkg.id}')" class="text-blue-600 hover:text-blue-800 p-1" title="Ver QR"><i class="fas fa-qrcode"></i></button>
-                    <button onclick="openEditStatusModal('${pkg.id}')" class="text-amber-500 hover:text-amber-700 p-1" title="Editar Estado"><i class="fas fa-edit"></i></button>
-                    <button onclick="openHistorialModal('${pkg.id}')" class="history-icon p-1" title="Ver Historial (${histCount})">
-                        <i class="fas fa-history"></i><sup class="text-xs">${histCount}</sup>
-                    </button>
+                    <button onclick="openEditStatusModal('${pkg.id}')" class="text-amber-500 hover:text-amber-700 p-1" title="Editar"><i class="fas fa-edit"></i></button>
+                    <button onclick="openHistorialModal('${pkg.id}')" class="history-icon p-1" title="Historial (${histCount})"><i class="fas fa-history"></i><sup class="text-xs">${histCount}</sup></button>
                     <button onclick="deletePackage('${pkg.id}')" class="text-red-500 hover:text-red-700 p-1" title="Eliminar"><i class="fas fa-trash"></i></button>
-                </td>
-            `;
+                </td>`;
             tbody.appendChild(tr);
         });
     }
-
-    // Controles de paginación
     renderPagination(totalPages);
-
-    // Info
     const from = total === 0 ? 0 : start + 1;
     const to   = Math.min(start + perPage, total);
-    document.getElementById('paginationInfo').textContent =
-        total === 0 ? 'Sin resultados' : `Mostrando ${from}–${to} de ${total} paquetes`;
+    document.getElementById('paginationInfo').textContent = total === 0 ? 'Sin resultados' : `Mostrando ${from}–${to} de ${total} paquetes`;
 }
-
+ 
 function renderPagination(totalPages) {
     const ctrl = document.getElementById('paginationControls');
     ctrl.innerHTML = '';
     const page = AppState.pagination.page;
-
     const makeBtn = (label, p, disabled=false, active=false) => {
         const btn = document.createElement('button');
         btn.className = `page-btn${active?' active':''}`;
-        btn.innerHTML = label;
-        btn.disabled = disabled;
+        btn.innerHTML = label; btn.disabled = disabled;
         btn.onclick = () => { AppState.pagination.page = p; loadPackagesTable(); };
         return btn;
     };
-
     ctrl.appendChild(makeBtn('<i class="fas fa-angle-double-left"></i>', 1, page===1));
     ctrl.appendChild(makeBtn('<i class="fas fa-angle-left"></i>', page-1, page===1));
-
-    // Páginas visibles: máx 5 alrededor de la actual
-    let start = Math.max(1, page-2);
-    let end   = Math.min(totalPages, page+2);
-    if (end-start < 4) { start = Math.max(1, end-4); }
-
-    for (let p = start; p <= end; p++) {
-        ctrl.appendChild(makeBtn(p, p, false, p===page));
-    }
-
+    let start = Math.max(1, page-2), end = Math.min(totalPages, page+2);
+    if (end-start < 4) start = Math.max(1, end-4);
+    for (let p = start; p <= end; p++) ctrl.appendChild(makeBtn(p, p, false, p===page));
     ctrl.appendChild(makeBtn('<i class="fas fa-angle-right"></i>', page+1, page===totalPages));
     ctrl.appendChild(makeBtn('<i class="fas fa-angle-double-right"></i>', totalPages, page===totalPages));
 }
-
-function filterPackages() {
-    AppState.pagination.page = 1;
-    loadPackagesTable();
-}
-
+ 
+async function filterPackages() { AppState.pagination.page = 1; await loadPackagesTable(); }
 function clearFilters() {
     document.getElementById('searchFilter').value = '';
     document.getElementById('statusFilter').value = '';
     filterPackages();
 }
-
-function deletePackage(id) {
-    if (!confirm('¿Eliminar este paquete permanentemente? Esta acción no se puede deshacer.')) return;
-    let packages = getFromStorage('aircargo_packages') || [];
-    packages = packages.filter(p => p.id !== id);
-    saveToStorage('aircargo_packages', packages);
-    loadPackagesTable();
-    loadDashboardData();
-    showToast('Paquete eliminado', 'success');
+ 
+async function deletePackage(id) {
+    if (!confirm('¿Eliminar este paquete permanentemente?')) return;
+    try {
+        await deletePackageDB(id);
+        loadPackagesTable(); loadDashboardData();
+        showToast('Paquete eliminado', 'success');
+    } catch(e) { showToast('Error al eliminar', 'error'); }
 }
-
+ 
 // ============================================================
 // EDITAR ESTADO
 // ============================================================
 let editingPackageId = null;
-
-function openEditStatusModal(packageId) {
+ 
+async function openEditStatusModal(packageId) {
     editingPackageId = packageId;
-    const packages = getFromStorage('aircargo_packages') || [];
-    const pkg = packages.find(p => p.id === packageId);
+    const pkg = await getPackageById(packageId);
     if (!pkg) return;
-
     document.getElementById('editStatusPackageId').textContent = packageId;
     document.getElementById('currentStatusLabel').textContent = pkg.estado;
     document.getElementById('newStatusSelect').value = pkg.estado;
     document.getElementById('statusNote').value = '';
     document.getElementById('editStatusModal').classList.remove('hidden');
 }
-
 function closeEditStatusModal() {
     document.getElementById('editStatusModal').classList.add('hidden');
     editingPackageId = null;
 }
-
-function saveNewStatus() {
+ 
+async function saveNewStatus() {
     if (!editingPackageId) return;
     const newStatus = document.getElementById('newStatusSelect').value;
     const note = document.getElementById('statusNote').value.trim();
-
-    let packages = getFromStorage('aircargo_packages') || [];
-    const idx = packages.findIndex(p => p.id === editingPackageId);
-    if (idx === -1) { showToast('Paquete no encontrado', 'error'); return; }
-
-    const oldStatus = packages[idx].estado;
-    if (oldStatus === newStatus && !note) {
-        showToast('El estado no cambió', 'warning');
+    try {
+        const pkg = await getPackageById(editingPackageId);
+        if (!pkg) { showToast('Paquete no encontrado', 'error'); return; }
+        const oldStatus = pkg.estado;
+        if (!pkg.historial) pkg.historial = [];
+        pkg.historial.push({
+            fecha: new Date().toISOString(),
+            estadoAnterior: oldStatus,
+            estadoNuevo: newStatus,
+            nota: note || 'Cambio de estado',
+            usuario: AppState.currentUser.username
+        });
+        await updatePackage(editingPackageId, { estado: newStatus, historial: pkg.historial });
+        showToast(`Estado actualizado: ${oldStatus} → ${newStatus}`, 'success');
         closeEditStatusModal();
-        return;
-    }
-
-    packages[idx].estado = newStatus;
-    if (!packages[idx].historial) packages[idx].historial = [];
-    packages[idx].historial.push({
-        fecha: new Date().toISOString(),
-        estadoAnterior: oldStatus,
-        estadoNuevo: newStatus,
-        nota: note || 'Cambio de estado',
-        usuario: AppState.currentUser.username
-    });
-
-    saveToStorage('aircargo_packages', packages);
-    showToast(`Estado actualizado: ${oldStatus} → ${newStatus}`, 'success');
-    closeEditStatusModal();
-    loadPackagesTable();
-    loadDashboardData();
+        loadPackagesTable(); loadDashboardData();
+    } catch(e) { showToast('Error al actualizar', 'error'); console.error(e); }
 }
-
+ 
 // ============================================================
 // HISTORIAL MODAL
 // ============================================================
-function openHistorialModal(packageId) {
-    const packages = getFromStorage('aircargo_packages') || [];
-    const pkg = packages.find(p => p.id === packageId);
+async function openHistorialModal(packageId) {
+    const pkg = await getPackageById(packageId);
     if (!pkg) return;
-
     document.getElementById('historialPackageId').textContent = packageId;
     const content = document.getElementById('historialContent');
     content.innerHTML = '';
-
     if (!pkg.historial || pkg.historial.length === 0) {
         content.innerHTML = '<p class="text-slate-400 text-center py-4">Sin historial registrado</p>';
     } else {
@@ -1146,90 +1055,71 @@ function openHistorialModal(packageId) {
                         ${h.estadoAnterior ? `<span class="text-xs text-slate-400">← ${h.estadoAnterior}</span>` : '<span class="text-xs text-slate-400 italic">Registro inicial</span>'}
                     </div>
                     <p class="text-sm text-slate-700">${h.nota}</p>
-                    <p class="text-xs text-slate-400 mt-1">
-                        <i class="fas fa-user mr-1"></i>${h.usuario} &nbsp;•&nbsp;
-                        <i class="fas fa-clock mr-1"></i>${new Date(h.fecha).toLocaleString('es-ES')}
-                    </p>
-                </div>
-            `;
+                    <p class="text-xs text-slate-400 mt-1"><i class="fas fa-user mr-1"></i>${h.usuario} &nbsp;•&nbsp; <i class="fas fa-clock mr-1"></i>${new Date(h.fecha).toLocaleString('es-ES')}</p>
+                </div>`;
             content.appendChild(div);
         });
     }
-
     document.getElementById('historialModal').classList.remove('hidden');
 }
-
-function closeHistorialModal() {
-    document.getElementById('historialModal').classList.add('hidden');
-}
-
+function closeHistorialModal() { document.getElementById('historialModal').classList.add('hidden'); }
+ 
 // ============================================================
-// MODALES: PAQUETE / QR / PDF
+// MODALES PAQUETE / QR / PDF
 // ============================================================
 function openNewPackageModal()  { document.getElementById('newPackageModal').classList.remove('hidden'); }
 function closeNewPackageModal() { document.getElementById('newPackageModal').classList.add('hidden'); }
-
+ 
 function showQRModal(packageData) {
     document.getElementById('qrTrackingId').textContent = packageData.id;
     document.getElementById('qrcode').innerHTML = '';
     new QRCode(document.getElementById('qrcode'), {
-        text: packageData.id,
-        width: 200, height: 200,
+        text: packageData.id, width: 200, height: 200,
         colorDark: '#1e40af', colorLight: '#ffffff',
         correctLevel: QRCode.CorrectLevel.H
     });
     document.getElementById('qrModal').classList.remove('hidden');
 }
-
 function closeQRModal() { document.getElementById('qrModal').classList.add('hidden'); }
-
-function showPackageQR(id) {
-    const pkg = (getFromStorage('aircargo_packages') || []).find(p => p.id === id);
+ 
+async function showPackageQR(id) {
+    const pkg = await getPackageById(id);
     if (pkg) { AppState.lastQRData = pkg; showQRModal(pkg); }
 }
-
+ 
 function downloadQR() {
     const canvas = document.querySelector('#qrcode canvas');
     if (canvas) {
         const a = document.createElement('a');
         a.download = `QR_${AppState.lastQRData.id}.png`;
-        a.href = canvas.toDataURL();
-        a.click();
+        a.href = canvas.toDataURL(); a.click();
         showToast('QR descargado', 'success');
     }
 }
-
+ 
 function viewAsPDF() {
     closeQRModal();
-    if (AppState.lastQRData) {
-        generatePDFContent(AppState.lastQRData);
-        document.getElementById('pdfModal').classList.remove('hidden');
-    }
+    if (AppState.lastQRData) { generatePDFContent(AppState.lastQRData); document.getElementById('pdfModal').classList.remove('hidden'); }
 }
-
 function closePDFModal() { document.getElementById('pdfModal').classList.add('hidden'); }
-
+ 
 function generatePDFContent(pkg) {
     const histHTML = pkg.historial && pkg.historial.length
-        ? `<div style="margin-top:24px">
-            <h3 style="color:#1e40af;font-size:14px;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px">Historial de Estados</h3>
-            <table style="width:100%;border-collapse:collapse;font-size:11px">
-                <thead><tr style="background:#f1f5f9">
-                    <th style="padding:5px 8px;border:1px solid #e2e8f0;text-align:left">Fecha</th>
-                    <th style="padding:5px 8px;border:1px solid #e2e8f0;text-align:left">Anterior</th>
-                    <th style="padding:5px 8px;border:1px solid #e2e8f0;text-align:left">Nuevo</th>
-                    <th style="padding:5px 8px;border:1px solid #e2e8f0;text-align:left">Nota</th>
-                    <th style="padding:5px 8px;border:1px solid #e2e8f0;text-align:left">Usuario</th>
-                </tr></thead>
-                <tbody>${pkg.historial.map(h=>`<tr>
-                    <td style="padding:5px 8px;border:1px solid #e2e8f0">${new Date(h.fecha).toLocaleString('es-ES')}</td>
-                    <td style="padding:5px 8px;border:1px solid #e2e8f0">${h.estadoAnterior||'—'}</td>
-                    <td style="padding:5px 8px;border:1px solid #e2e8f0"><b>${h.estadoNuevo}</b></td>
-                    <td style="padding:5px 8px;border:1px solid #e2e8f0">${h.nota}</td>
-                    <td style="padding:5px 8px;border:1px solid #e2e8f0">${h.usuario}</td>
-                </tr>`).join('')}</tbody>
-            </table></div>` : '';
-
+        ? `<div style="margin-top:24px"><h3 style="color:#1e40af;font-size:14px;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px">Historial de Estados</h3>
+            <table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#f1f5f9">
+                <th style="padding:5px 8px;border:1px solid #e2e8f0;text-align:left">Fecha</th>
+                <th style="padding:5px 8px;border:1px solid #e2e8f0;text-align:left">Anterior</th>
+                <th style="padding:5px 8px;border:1px solid #e2e8f0;text-align:left">Nuevo</th>
+                <th style="padding:5px 8px;border:1px solid #e2e8f0;text-align:left">Nota</th>
+                <th style="padding:5px 8px;border:1px solid #e2e8f0;text-align:left">Usuario</th>
+            </tr></thead><tbody>${pkg.historial.map(h=>`<tr>
+                <td style="padding:5px 8px;border:1px solid #e2e8f0">${new Date(h.fecha).toLocaleString('es-ES')}</td>
+                <td style="padding:5px 8px;border:1px solid #e2e8f0">${h.estadoAnterior||'—'}</td>
+                <td style="padding:5px 8px;border:1px solid #e2e8f0"><b>${h.estadoNuevo}</b></td>
+                <td style="padding:5px 8px;border:1px solid #e2e8f0">${h.nota}</td>
+                <td style="padding:5px 8px;border:1px solid #e2e8f0">${h.usuario}</td>
+            </tr>`).join('')}</tbody></table></div>` : '';
+ 
     document.getElementById('pdfContent').innerHTML = `
         <div style="font-family:Arial,sans-serif;padding:40px">
             <div style="text-align:center;border-bottom:3px solid #2563eb;padding-bottom:20px;margin-bottom:28px">
@@ -1237,22 +1127,19 @@ function generatePDFContent(pkg) {
                 <p style="color:#64748b;margin:6px 0 0;font-size:13px">Documento de Transporte — ID: ${pkg.id}</p>
             </div>
             <div style="background:#f8fafc;padding:18px;border-radius:8px;margin-bottom:16px;font-size:13px;line-height:1.8">
-                <p><b>Origen:</b> ${pkg.origen}</p>
-                <p><b>Destino:</b> ${pkg.destino}</p>
-                <p><b>Peso:</b> ${pkg.peso} kg</p>
-                <p><b>Dimensiones:</b> ${pkg.dimensiones} cm</p>
-                <p><b>Estado actual:</b> ${pkg.estado}</p>
-                <p><b>Descripción:</b> ${pkg.descripcion || '—'}</p>
+                <p><b>Origen:</b> ${pkg.origen}</p><p><b>Destino:</b> ${pkg.destino}</p>
+                <p><b>Peso:</b> ${pkg.peso} kg</p><p><b>Dimensiones:</b> ${pkg.dimensiones} cm</p>
+                <p><b>Estado actual:</b> ${pkg.estado}</p><p><b>Descripción:</b> ${pkg.descripcion || '—'}</p>
                 <p><b>Registrado por:</b> ${pkg.createdBy}</p>
                 <p><b>Fecha de registro:</b> ${new Date(pkg.date).toLocaleString('es-ES')}</p>
             </div>
             ${histHTML}
             <div style="text-align:center;margin-top:40px;color:#94a3b8;font-size:11px;border-top:1px solid #e2e8f0;padding-top:16px">
-                Documento generado automáticamente el ${new Date().toLocaleString('es-ES')} — AirCargo Pro v2.0
+                Documento generado el ${new Date().toLocaleString('es-ES')} — AirCargo Pro v3.0 Cloud
             </div>
         </div>`;
 }
-
+ 
 function downloadPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p','pt','a4');
@@ -1261,243 +1148,186 @@ function downloadPDF() {
         x:20, y:20, width:550
     });
 }
-
+ 
 // ============================================================
 // ADMIN PANEL
 // ============================================================
-function openAdminPanel() {
+async function openAdminPanel() {
     if (AppState.currentUser.role !== 'superadmin') return;
-    loadAdminUsersTable();
-    loadSpyData();
+    await loadAdminUsersTable();
+    await loadSpyData();
     document.getElementById('adminPanelModal').classList.remove('hidden');
 }
-
 function closeAdminPanel() { document.getElementById('adminPanelModal').classList.add('hidden'); }
-
-function loadAdminUsersTable() {
-    const users = getFromStorage('aircargo_users') || [];
+ 
+async function loadAdminUsersTable() {
+    const users = await getAllUsers();
     const tbody = document.getElementById('adminUsersTable');
     tbody.innerHTML = '';
-
     const others = users.filter(u => u.username !== 'Admin1');
     if (others.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-4 text-center text-slate-400 text-sm">No hay usuarios secundarios</td></tr>';
         return;
     }
-
     others.forEach(user => {
         const tr = document.createElement('tr');
         tr.className = 'border-b hover:bg-slate-50';
         tr.innerHTML = `
             <td class="px-4 py-3 font-medium">${user.username}</td>
-            <td class="px-4 py-3">
-                <span class="px-2 py-0.5 rounded text-xs font-medium ${user.role==='admin'?'bg-purple-100 text-purple-700':'bg-blue-100 text-blue-700'}">
-                    ${user.role==='admin'?'Admin Secundario':'Operador'}
-                </span>
-            </td>
-            <td class="px-4 py-3">
-                <span class="px-2 py-0.5 rounded text-xs font-medium ${user.active?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">
-                    ${user.active?'Activo':'Inactivo'}
-                </span>
-            </td>
+            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs font-medium ${user.role==='admin'?'bg-purple-100 text-purple-700':'bg-blue-100 text-blue-700'}">${user.role==='admin'?'Admin Secundario':'Operador'}</span></td>
+            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs font-medium ${user.active?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">${user.active?'Activo':'Inactivo'}</span></td>
             <td class="px-4 py-3 text-xs text-slate-400">${new Date(user.createdAt).toLocaleDateString('es-ES')}</td>
             <td class="px-4 py-3 space-x-3">
-                <button onclick="toggleUserStatus('${user.username}')" class="text-sm text-blue-600 hover:underline">
-                    ${user.active?'Desactivar':'Activar'}
-                </button>
+                <button onclick="toggleUserStatus('${user.username}')" class="text-sm text-blue-600 hover:underline">${user.active?'Desactivar':'Activar'}</button>
                 <button onclick="deleteUserConfirm('${user.username}')" class="text-sm text-red-600 hover:underline">Eliminar</button>
-            </td>
-        `;
+            </td>`;
         tbody.appendChild(tr);
     });
 }
-
-function loadSpyData() {
-    const packages = getFromStorage('aircargo_packages') || [];
+ 
+async function loadSpyData() {
+    const packages = await getAllPackages();
     const tbody = document.getElementById('spyDataTableBody');
     tbody.innerHTML = '';
-
     if (packages.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-slate-400 text-sm">Sin paquetes</td></tr>';
-        return;
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-slate-400 text-sm">Sin paquetes</td></tr>'; return;
     }
-
-    [...packages].sort((a,b) => b.timestamp-a.timestamp).forEach(pkg => {
+    packages.forEach(pkg => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="font-mono text-xs">${pkg.id.substring(0,22)}…</td>
-            <td>${pkg.origen}</td>
-            <td>${pkg.destino}</td>
+            <td>${pkg.origen}</td><td>${pkg.destino}</td>
             <td><span class="px-2 py-0.5 rounded text-xs ${getStatusClass(pkg.estado)}">${pkg.estado}</span></td>
             <td class="text-xs text-slate-500">${new Date(pkg.date).toLocaleDateString('es-ES')}</td>
-            <td class="text-xs">${pkg.createdBy}</td>
-        `;
+            <td class="text-xs">${pkg.createdBy}</td>`;
         tbody.appendChild(tr);
     });
 }
-
+ 
 function openCreateUserModal()  { document.getElementById('createUserModal').classList.remove('hidden'); }
 function closeCreateUserModal() {
     document.getElementById('createUserModal').classList.add('hidden');
     document.getElementById('createUserForm').reset();
     document.getElementById('parentAdminDiv').classList.add('hidden');
 }
-
-function loadParentAdmins() {
-    const admins = (getFromStorage('aircargo_users') || []).filter(u => u.role==='admin' || u.role==='superadmin');
+ 
+async function loadParentAdmins() {
+    const admins = (await getAllUsers()).filter(u => u.role==='admin' || u.role==='superadmin');
     const sel = document.getElementById('parentAdmin');
     sel.innerHTML = admins.map(a => `<option value="${a.username}">${a.username}</option>`).join('');
 }
-
-function handleCreateUser(e) {
+ 
+async function handleCreateUser(e) {
     e.preventDefault();
     const username = document.getElementById('newUsername').value.trim();
     const password = document.getElementById('newPassword').value;
     const role     = document.getElementById('newUserRole').value;
     const parent   = role === 'subuser' ? document.getElementById('parentAdmin').value : null;
-
-    if (username.length < 3) { alert('El nombre de usuario debe tener al menos 3 caracteres'); return; }
+    if (username.length < 3) { alert('El nombre debe tener al menos 3 caracteres'); return; }
     if (password.length < 6) { alert('La contraseña debe tener al menos 6 caracteres'); return; }
-
-    const users = getFromStorage('aircargo_users') || [];
-    if (users.find(u => u.username === username)) { alert('El usuario ya existe'); return; }
-
-    users.push({
-        username,
-        passwordHash: hashPassword(password),
-        role, parent,
-        createdBy: AppState.currentUser.username,
-        createdAt: new Date().toISOString(),
-        active: true
-    });
-
-    saveToStorage('aircargo_users', users);
-    showToast(`Usuario "${username}" creado exitosamente`, 'success');
-    closeCreateUserModal();
-    loadAdminUsersTable();
+    try {
+        const existing = await getUser(username);
+        if (existing) { alert('El usuario ya existe'); return; }
+        await saveUser({
+            username, passwordHash: hashPassword(password),
+            role, parent, createdBy: AppState.currentUser.username,
+            createdAt: new Date().toISOString(), active: true
+        });
+        showToast(`Usuario "${username}" creado exitosamente`, 'success');
+        closeCreateUserModal();
+        await loadAdminUsersTable();
+    } catch(e) { showToast('Error al crear usuario', 'error'); console.error(e); }
 }
-
-function toggleUserStatus(username) {
-    const users = getFromStorage('aircargo_users') || [];
-    const user = users.find(u => u.username === username);
-    if (user) {
-        user.active = !user.active;
-        saveToStorage('aircargo_users', users);
-        loadAdminUsersTable();
-        showToast(`Usuario ${user.active?'activado':'desactivado'}`, 'success');
-    }
+ 
+async function toggleUserStatus(username) {
+    try {
+        const user = await getUser(username);
+        if (user) {
+            await updateUser(username, { active: !user.active });
+            await loadAdminUsersTable();
+            showToast(`Usuario ${!user.active?'activado':'desactivado'}`, 'success');
+        }
+    } catch(e) { showToast('Error', 'error'); }
 }
-
-function deleteUserConfirm(username) {
-    if (!confirm(`¿Eliminar permanentemente al usuario "${username}"?\nSus paquetes registrados permanecerán en el sistema.`)) return;
-    saveToStorage('aircargo_users', (getFromStorage('aircargo_users')||[]).filter(u => u.username!==username));
-    loadAdminUsersTable();
-    showToast('Usuario eliminado', 'success');
+ 
+async function deleteUserConfirm(username) {
+    if (!confirm(`¿Eliminar permanentemente al usuario "${username}"?`)) return;
+    try {
+        await deleteUser(username);
+        await loadAdminUsersTable();
+        showToast('Usuario eliminado', 'success');
+    } catch(e) { showToast('Error al eliminar', 'error'); }
 }
-
+ 
 // ============================================================
-// QR SCANNER / BÚSQUEDA
+// QR SCANNER
 // ============================================================
-function searchByQR() {
+async function searchByQR() {
     const id = document.getElementById('manualQRInput').value.trim();
     const resultDiv = document.getElementById('scanResult');
-
     if (!id) { showToast('Ingresa un ID de seguimiento', 'warning'); return; }
-
-    const pkg = (getFromStorage('aircargo_packages')||[]).find(p => p.id === id);
-
-    if (!pkg) {
-        resultDiv.innerHTML = `<div class="text-center text-red-600 py-4">
-            <i class="fas fa-times-circle text-4xl mb-3 block"></i>
-            <p class="font-semibold">Paquete no encontrado</p>
-            <p class="text-sm text-slate-400 mt-1">Verifica el ID e intenta nuevamente</p>
-        </div>`;
-        resultDiv.classList.remove('hidden');
-        return;
-    }
-
-    const user = AppState.currentUser;
-    const hasAccess = user.role==='superadmin' || pkg.createdBy===user.username ||
-                      (user.role==='admin' && pkg.parentAdmin===user.username);
-
-    if (!hasAccess) {
-        resultDiv.innerHTML = `<div class="text-center text-slate-500 py-4">
-            <i class="fas fa-lock text-4xl mb-3 block"></i>
-            <p class="font-semibold">Sin permisos para ver este registro</p>
-        </div>`;
-        resultDiv.classList.remove('hidden');
-        return;
-    }
-
-    AppState.lastQRData = pkg;
-
-    resultDiv.innerHTML = `
-        <div class="space-y-4">
-            <div class="flex items-center justify-between">
-                <h4 class="font-bold text-slate-800">Detalle del Paquete</h4>
-                <span class="px-3 py-1 rounded-full text-xs font-semibold ${getStatusClass(pkg.estado)}">${pkg.estado}</span>
-            </div>
-            <div class="grid grid-cols-2 gap-3 text-sm">
-                <div class="bg-slate-50 p-3 rounded-lg">
-                    <p class="text-xs text-slate-400">ID</p>
-                    <p class="font-mono text-xs font-bold text-blue-600 break-all">${pkg.id}</p>
-                </div>
-                <div class="bg-slate-50 p-3 rounded-lg">
-                    <p class="text-xs text-slate-400">Registrado por</p>
-                    <p class="font-medium">${pkg.createdBy}</p>
-                </div>
-                <div class="bg-slate-50 p-3 rounded-lg">
-                    <p class="text-xs text-slate-400">Origen</p>
-                    <p class="font-medium">${pkg.origen}</p>
-                </div>
-                <div class="bg-slate-50 p-3 rounded-lg">
-                    <p class="text-xs text-slate-400">Destino</p>
-                    <p class="font-medium">${pkg.destino}</p>
-                </div>
-                <div class="bg-slate-50 p-3 rounded-lg">
-                    <p class="text-xs text-slate-400">Peso</p>
-                    <p class="font-medium">${pkg.peso} kg</p>
-                </div>
-                <div class="bg-slate-50 p-3 rounded-lg">
-                    <p class="text-xs text-slate-400">Fecha de registro</p>
-                    <p class="font-medium text-xs">${new Date(pkg.date).toLocaleString('es-ES')}</p>
-                </div>
-            </div>
-            ${pkg.descripcion ? `<p class="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg"><b>Descripción:</b> ${pkg.descripcion}</p>` : ''}
-            <div class="flex gap-2 flex-wrap">
-                <button onclick="showPackageQR('${pkg.id}')" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-                    <i class="fas fa-qrcode mr-1"></i>Ver QR
-                </button>
-                <button onclick="openEditStatusModal('${pkg.id}')" class="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm hover:bg-amber-600">
-                    <i class="fas fa-edit mr-1"></i>Cambiar Estado
-                </button>
-                <button onclick="openHistorialModal('${pkg.id}')" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">
-                    <i class="fas fa-history mr-1"></i>Ver Historial
-                </button>
-            </div>
-        </div>`;
+ 
+    resultDiv.innerHTML = '<div class="text-center py-4"><span class="spinner" style="border-top-color:#3b82f6;border-color:#e2e8f0;width:24px;height:24px;"></span></div>';
     resultDiv.classList.remove('hidden');
+ 
+    try {
+        const pkg = await getPackageById(id);
+        if (!pkg) {
+            resultDiv.innerHTML = `<div class="text-center text-red-600 py-4">
+                <i class="fas fa-times-circle text-4xl mb-3 block"></i>
+                <p class="font-semibold">Paquete no encontrado</p></div>`;
+            return;
+        }
+        const user = AppState.currentUser;
+        const hasAccess = user.role==='superadmin' || pkg.createdBy===user.username ||
+                          (user.role==='admin' && pkg.parentAdmin===user.username);
+        if (!hasAccess) {
+            resultDiv.innerHTML = `<div class="text-center text-slate-500 py-4">
+                <i class="fas fa-lock text-4xl mb-3 block"></i><p class="font-semibold">Sin permisos</p></div>`;
+            return;
+        }
+        AppState.lastQRData = pkg;
+        resultDiv.innerHTML = `
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h4 class="font-bold text-slate-800">Detalle del Paquete</h4>
+                    <span class="px-3 py-1 rounded-full text-xs font-semibold ${getStatusClass(pkg.estado)}">${pkg.estado}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div class="bg-slate-50 p-3 rounded-lg"><p class="text-xs text-slate-400">ID</p><p class="font-mono text-xs font-bold text-blue-600 break-all">${pkg.id}</p></div>
+                    <div class="bg-slate-50 p-3 rounded-lg"><p class="text-xs text-slate-400">Registrado por</p><p class="font-medium">${pkg.createdBy}</p></div>
+                    <div class="bg-slate-50 p-3 rounded-lg"><p class="text-xs text-slate-400">Origen</p><p class="font-medium">${pkg.origen}</p></div>
+                    <div class="bg-slate-50 p-3 rounded-lg"><p class="text-xs text-slate-400">Destino</p><p class="font-medium">${pkg.destino}</p></div>
+                    <div class="bg-slate-50 p-3 rounded-lg"><p class="text-xs text-slate-400">Peso</p><p class="font-medium">${pkg.peso} kg</p></div>
+                    <div class="bg-slate-50 p-3 rounded-lg"><p class="text-xs text-slate-400">Fecha</p><p class="font-medium text-xs">${new Date(pkg.date).toLocaleString('es-ES')}</p></div>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <button onclick="showPackageQR('${pkg.id}')" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"><i class="fas fa-qrcode mr-1"></i>Ver QR</button>
+                    <button onclick="openEditStatusModal('${pkg.id}')" class="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm hover:bg-amber-600"><i class="fas fa-edit mr-1"></i>Cambiar Estado</button>
+                    <button onclick="openHistorialModal('${pkg.id}')" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700"><i class="fas fa-history mr-1"></i>Ver Historial</button>
+                </div>
+            </div>`;
+    } catch(e) {
+        resultDiv.innerHTML = '<div class="text-center text-red-600 py-4">Error de conexión</div>';
+        console.error(e);
+    }
 }
-
+ 
 // ============================================================
 // REPORTES
 // ============================================================
-function loadCharts() {
-    const packages = getVisiblePackages();
-
-    // Limpiar canvas antes de redibujar
+async function loadCharts() {
+    const packages = await getVisiblePackages();
     ['statusChart','volumeChart'].forEach(id => {
         const canvas = document.getElementById(id);
         canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
     });
-
     drawPieChart(document.getElementById('statusChart').getContext('2d'), {
         'En Bodega':   packages.filter(p=>p.estado==='En Bodega').length,
         'En Tránsito': packages.filter(p=>p.estado==='En Tránsito').length,
         'Entregado':   packages.filter(p=>p.estado==='Entregado').length,
         'Retrasado':   packages.filter(p=>p.estado==='Retrasado').length
     });
-
     const last7 = {};
     for (let i=6;i>=0;i--) {
         const d = new Date(); d.setDate(d.getDate()-i);
@@ -1506,43 +1336,32 @@ function loadCharts() {
     packages.forEach(p => { const k=p.date.split('T')[0]; if(k in last7) last7[k]++; });
     drawBarChart(document.getElementById('volumeChart').getContext('2d'), last7);
 }
-
+ 
 function drawPieChart(ctx, data) {
     const total = Object.values(data).reduce((a,b)=>a+b,0);
-    if (total===0) {
-        ctx.fillStyle='#94a3b8'; ctx.textAlign='center'; ctx.font='14px Arial';
-        ctx.fillText('No hay datos', 200, 150); return;
-    }
+    if (total===0) { ctx.fillStyle='#94a3b8'; ctx.textAlign='center'; ctx.font='14px Arial'; ctx.fillText('No hay datos', 200, 150); return; }
     const colors=['#f59e0b','#3b82f6','#10b981','#ef4444'];
     let angle=0;
     const cx=200, cy=150, r=90;
     Object.entries(data).forEach(([label, val], i) => {
         if (val===0) return;
         const slice = (val/total)*2*Math.PI;
-        ctx.beginPath(); ctx.moveTo(cx,cy);
-        ctx.arc(cx,cy,r,angle,angle+slice); ctx.closePath();
-        ctx.fillStyle=colors[i]; ctx.fill();
-        ctx.strokeStyle='white'; ctx.lineWidth=2; ctx.stroke();
-
+        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,angle,angle+slice); ctx.closePath();
+        ctx.fillStyle=colors[i]; ctx.fill(); ctx.strokeStyle='white'; ctx.lineWidth=2; ctx.stroke();
         const la = angle+slice/2;
-        const lx = cx+(r+35)*Math.cos(la);
-        const ly = cy+(r+35)*Math.sin(la);
         ctx.fillStyle='#374151'; ctx.font='11px Arial'; ctx.textAlign='center';
-        ctx.fillText(`${label}`, lx, ly);
-        ctx.fillText(`${val} (${Math.round(val/total*100)}%)`, lx, ly+13);
+        ctx.fillText(`${label}`, cx+(r+35)*Math.cos(la), cy+(r+35)*Math.sin(la));
+        ctx.fillText(`${val} (${Math.round(val/total*100)}%)`, cx+(r+35)*Math.cos(la), cy+(r+35)*Math.sin(la)+13);
         angle += slice;
     });
 }
-
+ 
 function drawBarChart(ctx, data) {
     const vals=Object.values(data), max=Math.max(...vals,1);
     const labels=Object.keys(data).map(d=>d.substring(5));
     const pad=45, W=400, H=300, cw=W-pad*2, ch=H-pad*2;
     const bw=cw/vals.length*0.55, sp=cw/vals.length;
-
     ctx.clearRect(0,0,W,H);
-
-    // Líneas de fondo
     ctx.strokeStyle='#f1f5f9'; ctx.lineWidth=1;
     for (let i=0;i<=4;i++) {
         const y=pad+ch*(1-i/4);
@@ -1550,102 +1369,67 @@ function drawBarChart(ctx, data) {
         ctx.fillStyle='#94a3b8'; ctx.font='9px Arial'; ctx.textAlign='right';
         ctx.fillText(Math.round(max*i/4), pad-4, y+3);
     }
-
     vals.forEach((v,i) => {
-        const bh=(v/max)*ch;
-        const x=pad+i*sp+(sp-bw)/2;
-        const y=H-pad-bh;
-
-        // Gradiente en barras
+        const bh=(v/max)*ch, x=pad+i*sp+(sp-bw)/2, y=H-pad-bh;
         const grad=ctx.createLinearGradient(x,y,x,H-pad);
         grad.addColorStop(0,'#3b82f6'); grad.addColorStop(1,'#1d4ed8');
         ctx.fillStyle=grad;
         ctx.beginPath();
-        ctx.roundRect ? ctx.roundRect(x,y,bw,bh,4) : ctx.fillRect(x,y,bw,bh);
+        if (ctx.roundRect) ctx.roundRect(x,y,bw,bh,4); else ctx.fillRect(x,y,bw,bh);
         ctx.fill();
-
-        if (v>0) {
-            ctx.fillStyle='#1e293b'; ctx.font='bold 11px Arial'; ctx.textAlign='center';
-            ctx.fillText(v, x+bw/2, y-5);
-        }
-        ctx.fillStyle='#64748b'; ctx.font='10px Arial';
-        ctx.fillText(labels[i], x+bw/2, H-pad+14);
+        if (v>0) { ctx.fillStyle='#1e293b'; ctx.font='bold 11px Arial'; ctx.textAlign='center'; ctx.fillText(v, x+bw/2, y-5); }
+        ctx.fillStyle='#64748b'; ctx.font='10px Arial'; ctx.fillText(labels[i], x+bw/2, H-pad+14);
     });
 }
-
+ 
 // ============================================================
 // EXPORTAR EXCEL
 // ============================================================
-function exportToExcel() {
-    const packages = getVisiblePackages();
+async function exportToExcel() {
+    const packages = await getVisiblePackages();
     if (packages.length===0) { showToast('No hay paquetes para exportar', 'warning'); return; }
-
     const data = packages.map(p => ({
-        'ID Seguimiento': p.id,
-        'Origen': p.origen,
-        'Destino': p.destino,
-        'Peso (kg)': p.peso,
-        'Dimensiones (cm)': p.dimensiones,
-        'Estado': p.estado,
-        'Descripción': p.descripcion||'',
-        'Fecha Registro': new Date(p.date).toLocaleString('es-ES'),
-        'Registrado por': p.createdBy,
-        'Cambios de estado': p.historial ? p.historial.length : 1
+        'ID Seguimiento': p.id, 'Origen': p.origen, 'Destino': p.destino,
+        'Peso (kg)': p.peso, 'Dimensiones (cm)': p.dimensiones, 'Estado': p.estado,
+        'Descripción': p.descripcion||'', 'Fecha Registro': new Date(p.date).toLocaleString('es-ES'),
+        'Registrado por': p.createdBy, 'Cambios de estado': p.historial ? p.historial.length : 1
     }));
-
     const ws = XLSX.utils.json_to_sheet(data);
-    // Ajustar ancho de columnas
     ws['!cols'] = [{wch:30},{wch:20},{wch:20},{wch:10},{wch:18},{wch:14},{wch:30},{wch:22},{wch:16},{wch:18}];
-
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Paquetes');
     XLSX.writeFile(wb, `AirCargo_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
     showToast(`${packages.length} paquetes exportados`, 'success');
 }
-
+ 
 // ============================================================
 // UTILIDADES
 // ============================================================
 function showToast(message, type='info') {
-    // Eliminar toasts anteriores del mismo tipo
     document.querySelectorAll('.toast').forEach(t => t.remove());
     const toast = document.createElement('div');
     const icons = { success:'fa-check-circle', error:'fa-times-circle', info:'fa-info-circle', warning:'fa-exclamation-triangle' };
     toast.className = `toast toast-${type}`;
     toast.innerHTML = `<i class="fas ${icons[type]||icons.info} mr-2"></i>${message}`;
     document.body.appendChild(toast);
-    setTimeout(() => {
-        toast.style.transition='opacity 0.4s';
-        toast.style.opacity='0';
-        setTimeout(()=>toast.remove(), 400);
-    }, 3500);
+    setTimeout(() => { toast.style.transition='opacity 0.4s'; toast.style.opacity='0'; setTimeout(()=>toast.remove(), 400); }, 3500);
 }
-
-// Cerrar modales con ESC
+ 
 document.addEventListener('keydown', (e) => {
     if (e.key==='Escape') {
         closeNewPackageModal(); closeQRModal(); closeAdminPanel();
-        closeCreateUserModal(); closePDFModal(); closeEditStatusModal();
-        closeHistorialModal();
+        closeCreateUserModal(); closePDFModal(); closeEditStatusModal(); closeHistorialModal();
     }
 });
-
-// Cerrar al hacer click fuera del modal
 document.addEventListener('click', (e) => {
     const modals = {
-        'newPackageModal': closeNewPackageModal,
-        'qrModal':         closeQRModal,
-        'adminPanelModal': closeAdminPanel,
-        'createUserModal': closeCreateUserModal,
-        'pdfModal':        closePDFModal,
-        'editStatusModal': closeEditStatusModal,
-        'historialModal':  closeHistorialModal
+        'newPackageModal': closeNewPackageModal, 'qrModal': closeQRModal,
+        'adminPanelModal': closeAdminPanel, 'createUserModal': closeCreateUserModal,
+        'pdfModal': closePDFModal, 'editStatusModal': closeEditStatusModal, 'historialModal': closeHistorialModal
     };
-    if (e.target.classList.contains('fixed') && modals[e.target.id]) {
-        modals[e.target.id]();
-    }
+    if (e.target.classList.contains('fixed') && modals[e.target.id]) modals[e.target.id]();
 });
-
 </script>
 </body>
 </html>
+ 

@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <!-- ✅ Firebase SDKs Compat (orden correcto) -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AirCargo Pro - Sistema de Gestión</title>
@@ -51,22 +53,22 @@
     <base target="_blank">
 </head>
 <body class="text-slate-800">
- 
+
 <!-- Loading overlay mientras carga Firebase -->
 <div id="loadingOverlay">
     <div class="db-spinner"></div>
     <p><i class="fas fa-cloud mr-2"></i>Conectando con la nube...</p>
 </div>
- 
+
 <div id="spyBadge" class="spy-badge"><i class="fas fa-eye mr-1"></i>MODO SUPERVISOR</div>
- 
+
 <div id="sessionBar" class="session-bar hidden">
     <i class="fas fa-clock mr-1"></i>
     Sesión activa — tiempo restante: <span id="sessionTimer">--:--</span>
     &nbsp;|&nbsp;
     <button onclick="renewSession()" class="underline font-semibold">Renovar sesión</button>
 </div>
- 
+
 <!-- Login Screen -->
 <div id="loginScreen" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
     <div class="glass p-8 rounded-2xl shadow-2xl w-full max-w-md mx-4">
@@ -109,7 +111,7 @@
         </div>
     </div>
 </div>
- 
+
 <!-- Main App -->
 <div id="mainApp" class="hidden min-h-screen flex flex-col">
     <header class="glass-dark text-white shadow-lg z-40">
@@ -135,7 +137,7 @@
             </div>
         </div>
     </header>
- 
+
     <div class="flex-1 flex overflow-hidden">
         <aside class="w-64 glass border-r border-slate-200 flex flex-col">
             <nav class="p-4 space-y-1 flex-1">
@@ -153,7 +155,7 @@
                 </button>
             </nav>
         </aside>
- 
+
         <main class="flex-1 overflow-auto p-6">
             <!-- Dashboard -->
             <div id="dashboardView" class="space-y-6">
@@ -200,7 +202,7 @@
                     </div>
                 </div>
             </div>
- 
+
             <!-- Package Manager -->
             <div id="packageManagerView" class="hidden space-y-4">
                 <div class="flex items-center justify-between">
@@ -248,7 +250,7 @@
                     </div>
                 </div>
             </div>
- 
+
             <!-- QR Scanner -->
             <div id="scannerView" class="hidden space-y-6">
                 <h2 class="text-2xl font-bold">Escanear / Buscar Paquete</h2>
@@ -262,7 +264,7 @@
                 </div>
                 <div id="scanResult" class="hidden glass rounded-xl p-6 border border-slate-200 max-w-2xl mx-auto"></div>
             </div>
- 
+
             <!-- Reports -->
             <div id="reportsView" class="hidden space-y-6">
                 <h2 class="text-2xl font-bold">Reportes y Estadísticas</h2>
@@ -280,9 +282,9 @@
         </main>
     </div>
 </div>
- 
+
 <!-- ==================== MODALES ==================== -->
- 
+
 <!-- Nuevo Paquete -->
 <div id="newPackageModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="glass bg-white rounded-2xl w-full max-w-2xl">
@@ -341,7 +343,7 @@
         </form>
     </div>
 </div>
- 
+
 <!-- QR Modal -->
 <div id="qrModal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
     <div class="glass bg-white rounded-2xl w-full max-w-md text-center p-6">
@@ -359,7 +361,7 @@
         </div>
     </div>
 </div>
- 
+
 <!-- Admin Panel -->
 <div id="adminPanelModal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
     <div class="glass bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
@@ -396,7 +398,7 @@
         </div>
     </div>
 </div>
- 
+
 <!-- Crear Usuario -->
 <div id="createUserModal" class="hidden fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
     <div class="glass bg-white rounded-2xl w-full max-w-md p-6">
@@ -431,7 +433,7 @@
         </form>
     </div>
 </div>
- 
+
 <!-- PDF Modal -->
 <div id="pdfModal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
     <div class="bg-white rounded-lg w-full max-w-4xl h-[90vh] flex flex-col">
@@ -447,7 +449,7 @@
         </div>
     </div>
 </div>
- 
+
 <!-- Editar Estado -->
 <div id="editStatusModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="glass bg-white rounded-2xl w-full max-w-md">
@@ -484,7 +486,7 @@
         </div>
     </div>
 </div>
- 
+
 <!-- Historial Modal -->
 <div id="historialModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="glass bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
@@ -498,23 +500,29 @@
         </div>
     </div>
 </div>
- 
+
 <!-- ==================== SCRIPTS ==================== -->
 <script>
 // ============================================================
-// FIREBASE INIT
+// ✅ FIREBASE INIT — Configuración completa con databaseURL
 // ============================================================
 const firebaseConfig = {
     apiKey: "AIzaSyCLN-3F86ftTkxeRht5T9MxuVBMh_xmp2Y",
     authDomain: "aircargo-pro.firebaseapp.com",
+    databaseURL: "https://aircargo-pro-default-rtdb.firebaseio.com", // ✅ AGREGADO
     projectId: "aircargo-pro",
     storageBucket: "aircargo-pro.firebasestorage.app",
     messagingSenderId: "798440296750",
-    appId: "1:798440296750:web:5f6ca9eabd594d5c222abf"
+    appId: "1:798440296750:web:5f6ca9eabd594d5c222abf",
+    measurementId: "G-7N2GT0YMK2"
 };
-firebase.initializeApp(firebaseConfig);
+
+// ✅ Inicializar Firebase correctamente (evita doble inicialización)
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
 const db = firebase.firestore();
- 
+
 // ============================================================
 // HASH DE CONTRASEÑAS (sin CryptoJS)
 // ============================================================
@@ -530,7 +538,7 @@ function hashPassword(password) {
     h2 = Math.imul(h2 ^ (h2>>>16), 2246822507) ^ Math.imul(h1 ^ (h1>>>13), 3266489909);
     return (4294967296 * (2097151 & h2) + (h1>>>0)).toString(16).padStart(14,'0');
 }
- 
+
 // ============================================================
 // FIRESTORE — USUARIOS
 // ============================================================
@@ -551,7 +559,7 @@ async function updateUser(username, updates) {
 async function deleteUser(username) {
     await db.collection('users').doc(username).delete();
 }
- 
+
 // ============================================================
 // FIRESTORE — PAQUETES
 // ============================================================
@@ -572,13 +580,13 @@ async function getPackageById(id) {
     const doc = await db.collection('packages').doc(id).get();
     return doc.exists ? doc.data() : null;
 }
- 
+
 // ============================================================
 // CONSTANTES Y ESTADO
 // ============================================================
 const SESSION_DURATION_MS = 8 * 60 * 60 * 1000;
 const SESSION_WARNING_MS  = 15 * 60 * 1000;
- 
+
 const AppState = {
     currentUser: null,
     pagination: { page: 1, perPage: 20, total: 0 },
@@ -586,7 +594,7 @@ const AppState = {
     sessionExpiry: null,
     lastQRData: null
 };
- 
+
 // ============================================================
 // INICIALIZACIÓN
 // ============================================================
@@ -609,12 +617,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Error init:', e);
         showToast('Error conectando con la nube. Verifica tu internet.', 'error');
     }
- 
+
     setupEventListeners();
     checkExistingSession();
     document.getElementById('loadingOverlay').style.display = 'none';
 });
- 
+
 function setupEventListeners() {
     document.getElementById('loginForm').addEventListener('submit', handleLogin);
     document.getElementById('packageForm').addEventListener('submit', handleNewPackage);
@@ -625,7 +633,7 @@ function setupEventListeners() {
         if (show) loadParentAdmins();
     });
 }
- 
+
 // ============================================================
 // SESIÓN
 // ============================================================
@@ -652,7 +660,7 @@ function startSessionTimer(expiryTimestamp) {
         }
     }, 1000);
 }
- 
+
 function renewSession() {
     const newExpiry = Date.now() + SESSION_DURATION_MS;
     AppState.sessionExpiry = newExpiry;
@@ -662,7 +670,7 @@ function renewSession() {
     document.getElementById('sessionBar').classList.add('hidden');
     showToast('Sesión renovada por 8 horas', 'success');
 }
- 
+
 // ============================================================
 // LOGIN
 // ============================================================
@@ -673,13 +681,13 @@ async function handleLogin(e) {
     const btn = document.getElementById('loginBtn');
     btn.innerHTML = '<span class="spinner"></span> Verificando...';
     btn.disabled = true;
- 
+
     try {
         const user = await getUser(username);
         if (!user) { showLoginError('Usuario no encontrado'); return; }
         if (user.passwordHash !== hashPassword(password)) { showLoginError('Contraseña incorrecta'); return; }
         if (!user.active) { showLoginError('Usuario desactivado. Contacta al administrador.'); return; }
- 
+
         document.getElementById('loginError').classList.add('hidden');
         const expiresAt = Date.now() + SESSION_DURATION_MS;
         localStorage.setItem('aircargo_session', JSON.stringify({
@@ -698,7 +706,7 @@ async function handleLogin(e) {
         btn.disabled = false;
     }
 }
- 
+
 function showLoginError(msg) {
     document.getElementById('errorMessage').textContent = msg;
     document.getElementById('loginError').classList.remove('hidden');
@@ -706,7 +714,7 @@ function showLoginError(msg) {
     btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Iniciar Sesión';
     btn.disabled = false;
 }
- 
+
 function checkExistingSession() {
     try {
         const raw = localStorage.getItem('aircargo_session');
@@ -717,7 +725,6 @@ function checkExistingSession() {
             document.getElementById('loginScreen').classList.remove('hidden');
             return;
         }
-        // Restaurar sesión desde Firestore
         getUser(session.username).then(user => {
             if (user && user.active) {
                 AppState.currentUser = user;
@@ -732,7 +739,7 @@ function checkExistingSession() {
         document.getElementById('loginScreen').classList.remove('hidden');
     }
 }
- 
+
 function logout() {
     clearInterval(AppState.sessionInterval);
     localStorage.removeItem('aircargo_session');
@@ -746,7 +753,7 @@ function logout() {
     document.getElementById('adminPanelBtn').classList.add('hidden');
     showToast('Sesión cerrada', 'info');
 }
- 
+
 function togglePasswordVisibility() {
     const input = document.getElementById('password');
     const icon  = document.getElementById('eyeIcon');
@@ -759,7 +766,7 @@ function toggleNewPwd() {
     input.type = input.type === 'password' ? 'text' : 'password';
     icon.className = (input.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash') + ' text-sm';
 }
- 
+
 // ============================================================
 // INTERFAZ PRINCIPAL
 // ============================================================
@@ -776,12 +783,12 @@ function showMainApp() {
     }
     showDashboard();
 }
- 
+
 function showDashboard()      { switchView('dashboardView',      'navDashboard');  loadDashboardData(); }
 function showPackageManager() { switchView('packageManagerView', 'navPackages');   loadPackagesTable(); }
 function showQRScanner()      { switchView('scannerView',        'navScanner'); }
 function showReports()        { switchView('reportsView',        'navReports');    loadCharts(); }
- 
+
 function switchView(viewId, navId) {
     ['dashboardView','packageManagerView','scannerView','reportsView'].forEach(id =>
         document.getElementById(id).classList.add('hidden'));
@@ -797,7 +804,7 @@ function switchView(viewId, navId) {
         }
     });
 }
- 
+
 // ============================================================
 // DASHBOARD
 // ============================================================
@@ -808,7 +815,7 @@ async function loadDashboardData() {
     document.getElementById('statTransito').textContent  = packages.filter(p => p.estado === 'En Tránsito').length;
     document.getElementById('statEntregados').textContent= packages.filter(p => p.estado === 'Entregado').length;
     document.getElementById('statRetrasados').textContent= packages.filter(p => p.estado === 'Retrasado').length;
- 
+
     const recent = [...packages].sort((a,b) => b.timestamp - a.timestamp).slice(0, 10);
     const tbody = document.getElementById('recentTableBody');
     tbody.innerHTML = '';
@@ -827,13 +834,13 @@ async function loadDashboardData() {
         tbody.appendChild(tr);
     });
 }
- 
+
 async function filterByStatus(status) {
     showPackageManager();
     document.getElementById('statusFilter').value = status;
     await filterPackages();
 }
- 
+
 async function getVisiblePackages() {
     const all = await getAllPackages();
     const user = AppState.currentUser;
@@ -841,11 +848,11 @@ async function getVisiblePackages() {
     if (user.role === 'admin') return all.filter(p => p.createdBy === user.username || p.parentAdmin === user.username);
     return all.filter(p => p.createdBy === user.username);
 }
- 
+
 function getStatusClass(status) {
     return { 'En Bodega':'status-en-bodega','En Tránsito':'status-en-transito','Entregado':'status-entregado','Retrasado':'status-retrasado' }[status] || 'bg-gray-100';
 }
- 
+
 // ============================================================
 // GESTIÓN DE PAQUETES
 // ============================================================
@@ -854,7 +861,7 @@ async function handleNewPackage(e) {
     const btn = document.getElementById('savePackageBtn');
     btn.innerHTML = '<span class="spinner"></span> Guardando…';
     btn.disabled = true;
- 
+
     try {
         const fd = new FormData(e.target);
         const timestamp = Date.now();
@@ -896,7 +903,7 @@ async function handleNewPackage(e) {
         btn.disabled = false;
     }
 }
- 
+
 async function loadPackagesTable() {
     let packages = await getVisiblePackages();
     const search = document.getElementById('searchFilter').value.toLowerCase().trim();
@@ -906,16 +913,16 @@ async function loadPackagesTable() {
         p.destino.toLowerCase().includes(search) || (p.descripcion && p.descripcion.toLowerCase().includes(search)));
     if (status) packages = packages.filter(p => p.estado === status);
     packages.sort((a,b) => b.timestamp - a.timestamp);
- 
+
     AppState.pagination.total = packages.length;
     document.getElementById('filteredCount').textContent = (search || status) ? `${packages.length} resultado(s)` : '';
- 
+
     const { page, perPage, total } = AppState.pagination;
     const totalPages = Math.max(1, Math.ceil(total / perPage));
     if (page > totalPages) AppState.pagination.page = totalPages;
     const start = (AppState.pagination.page - 1) * perPage;
     const paginated = packages.slice(start, start + perPage);
- 
+
     const tbody = document.getElementById('packagesTableBody');
     tbody.innerHTML = '';
     if (paginated.length === 0) {
@@ -946,7 +953,7 @@ async function loadPackagesTable() {
     const to   = Math.min(start + perPage, total);
     document.getElementById('paginationInfo').textContent = total === 0 ? 'Sin resultados' : `Mostrando ${from}–${to} de ${total} paquetes`;
 }
- 
+
 function renderPagination(totalPages) {
     const ctrl = document.getElementById('paginationControls');
     ctrl.innerHTML = '';
@@ -966,14 +973,14 @@ function renderPagination(totalPages) {
     ctrl.appendChild(makeBtn('<i class="fas fa-angle-right"></i>', page+1, page===totalPages));
     ctrl.appendChild(makeBtn('<i class="fas fa-angle-double-right"></i>', totalPages, page===totalPages));
 }
- 
+
 async function filterPackages() { AppState.pagination.page = 1; await loadPackagesTable(); }
 function clearFilters() {
     document.getElementById('searchFilter').value = '';
     document.getElementById('statusFilter').value = '';
     filterPackages();
 }
- 
+
 async function deletePackage(id) {
     if (!confirm('¿Eliminar este paquete permanentemente?')) return;
     try {
@@ -982,12 +989,12 @@ async function deletePackage(id) {
         showToast('Paquete eliminado', 'success');
     } catch(e) { showToast('Error al eliminar', 'error'); }
 }
- 
+
 // ============================================================
 // EDITAR ESTADO
 // ============================================================
 let editingPackageId = null;
- 
+
 async function openEditStatusModal(packageId) {
     editingPackageId = packageId;
     const pkg = await getPackageById(packageId);
@@ -1002,7 +1009,7 @@ function closeEditStatusModal() {
     document.getElementById('editStatusModal').classList.add('hidden');
     editingPackageId = null;
 }
- 
+
 async function saveNewStatus() {
     if (!editingPackageId) return;
     const newStatus = document.getElementById('newStatusSelect').value;
@@ -1025,7 +1032,7 @@ async function saveNewStatus() {
         loadPackagesTable(); loadDashboardData();
     } catch(e) { showToast('Error al actualizar', 'error'); console.error(e); }
 }
- 
+
 // ============================================================
 // HISTORIAL MODAL
 // ============================================================
@@ -1063,13 +1070,13 @@ async function openHistorialModal(packageId) {
     document.getElementById('historialModal').classList.remove('hidden');
 }
 function closeHistorialModal() { document.getElementById('historialModal').classList.add('hidden'); }
- 
+
 // ============================================================
 // MODALES PAQUETE / QR / PDF
 // ============================================================
 function openNewPackageModal()  { document.getElementById('newPackageModal').classList.remove('hidden'); }
 function closeNewPackageModal() { document.getElementById('newPackageModal').classList.add('hidden'); }
- 
+
 function showQRModal(packageData) {
     document.getElementById('qrTrackingId').textContent = packageData.id;
     document.getElementById('qrcode').innerHTML = '';
@@ -1081,12 +1088,12 @@ function showQRModal(packageData) {
     document.getElementById('qrModal').classList.remove('hidden');
 }
 function closeQRModal() { document.getElementById('qrModal').classList.add('hidden'); }
- 
+
 async function showPackageQR(id) {
     const pkg = await getPackageById(id);
     if (pkg) { AppState.lastQRData = pkg; showQRModal(pkg); }
 }
- 
+
 function downloadQR() {
     const canvas = document.querySelector('#qrcode canvas');
     if (canvas) {
@@ -1096,13 +1103,13 @@ function downloadQR() {
         showToast('QR descargado', 'success');
     }
 }
- 
+
 function viewAsPDF() {
     closeQRModal();
     if (AppState.lastQRData) { generatePDFContent(AppState.lastQRData); document.getElementById('pdfModal').classList.remove('hidden'); }
 }
 function closePDFModal() { document.getElementById('pdfModal').classList.add('hidden'); }
- 
+
 function generatePDFContent(pkg) {
     const histHTML = pkg.historial && pkg.historial.length
         ? `<div style="margin-top:24px"><h3 style="color:#1e40af;font-size:14px;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px">Historial de Estados</h3>
@@ -1119,7 +1126,7 @@ function generatePDFContent(pkg) {
                 <td style="padding:5px 8px;border:1px solid #e2e8f0">${h.nota}</td>
                 <td style="padding:5px 8px;border:1px solid #e2e8f0">${h.usuario}</td>
             </tr>`).join('')}</tbody></table></div>` : '';
- 
+
     document.getElementById('pdfContent').innerHTML = `
         <div style="font-family:Arial,sans-serif;padding:40px">
             <div style="text-align:center;border-bottom:3px solid #2563eb;padding-bottom:20px;margin-bottom:28px">
@@ -1139,7 +1146,7 @@ function generatePDFContent(pkg) {
             </div>
         </div>`;
 }
- 
+
 function downloadPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p','pt','a4');
@@ -1148,7 +1155,7 @@ function downloadPDF() {
         x:20, y:20, width:550
     });
 }
- 
+
 // ============================================================
 // ADMIN PANEL
 // ============================================================
@@ -1159,7 +1166,7 @@ async function openAdminPanel() {
     document.getElementById('adminPanelModal').classList.remove('hidden');
 }
 function closeAdminPanel() { document.getElementById('adminPanelModal').classList.add('hidden'); }
- 
+
 async function loadAdminUsersTable() {
     const users = await getAllUsers();
     const tbody = document.getElementById('adminUsersTable');
@@ -1184,7 +1191,7 @@ async function loadAdminUsersTable() {
         tbody.appendChild(tr);
     });
 }
- 
+
 async function loadSpyData() {
     const packages = await getAllPackages();
     const tbody = document.getElementById('spyDataTableBody');
@@ -1203,20 +1210,20 @@ async function loadSpyData() {
         tbody.appendChild(tr);
     });
 }
- 
+
 function openCreateUserModal()  { document.getElementById('createUserModal').classList.remove('hidden'); }
 function closeCreateUserModal() {
     document.getElementById('createUserModal').classList.add('hidden');
     document.getElementById('createUserForm').reset();
     document.getElementById('parentAdminDiv').classList.add('hidden');
 }
- 
+
 async function loadParentAdmins() {
     const admins = (await getAllUsers()).filter(u => u.role==='admin' || u.role==='superadmin');
     const sel = document.getElementById('parentAdmin');
     sel.innerHTML = admins.map(a => `<option value="${a.username}">${a.username}</option>`).join('');
 }
- 
+
 async function handleCreateUser(e) {
     e.preventDefault();
     const username = document.getElementById('newUsername').value.trim();
@@ -1238,7 +1245,7 @@ async function handleCreateUser(e) {
         await loadAdminUsersTable();
     } catch(e) { showToast('Error al crear usuario', 'error'); console.error(e); }
 }
- 
+
 async function toggleUserStatus(username) {
     try {
         const user = await getUser(username);
@@ -1249,7 +1256,7 @@ async function toggleUserStatus(username) {
         }
     } catch(e) { showToast('Error', 'error'); }
 }
- 
+
 async function deleteUserConfirm(username) {
     if (!confirm(`¿Eliminar permanentemente al usuario "${username}"?`)) return;
     try {
@@ -1258,7 +1265,7 @@ async function deleteUserConfirm(username) {
         showToast('Usuario eliminado', 'success');
     } catch(e) { showToast('Error al eliminar', 'error'); }
 }
- 
+
 // ============================================================
 // QR SCANNER
 // ============================================================
@@ -1266,10 +1273,10 @@ async function searchByQR() {
     const id = document.getElementById('manualQRInput').value.trim();
     const resultDiv = document.getElementById('scanResult');
     if (!id) { showToast('Ingresa un ID de seguimiento', 'warning'); return; }
- 
+
     resultDiv.innerHTML = '<div class="text-center py-4"><span class="spinner" style="border-top-color:#3b82f6;border-color:#e2e8f0;width:24px;height:24px;"></span></div>';
     resultDiv.classList.remove('hidden');
- 
+
     try {
         const pkg = await getPackageById(id);
         if (!pkg) {
@@ -1312,7 +1319,7 @@ async function searchByQR() {
         console.error(e);
     }
 }
- 
+
 // ============================================================
 // REPORTES
 // ============================================================
@@ -1336,7 +1343,7 @@ async function loadCharts() {
     packages.forEach(p => { const k=p.date.split('T')[0]; if(k in last7) last7[k]++; });
     drawBarChart(document.getElementById('volumeChart').getContext('2d'), last7);
 }
- 
+
 function drawPieChart(ctx, data) {
     const total = Object.values(data).reduce((a,b)=>a+b,0);
     if (total===0) { ctx.fillStyle='#94a3b8'; ctx.textAlign='center'; ctx.font='14px Arial'; ctx.fillText('No hay datos', 200, 150); return; }
@@ -1355,7 +1362,7 @@ function drawPieChart(ctx, data) {
         angle += slice;
     });
 }
- 
+
 function drawBarChart(ctx, data) {
     const vals=Object.values(data), max=Math.max(...vals,1);
     const labels=Object.keys(data).map(d=>d.substring(5));
@@ -1381,7 +1388,7 @@ function drawBarChart(ctx, data) {
         ctx.fillStyle='#64748b'; ctx.font='10px Arial'; ctx.fillText(labels[i], x+bw/2, H-pad+14);
     });
 }
- 
+
 // ============================================================
 // EXPORTAR EXCEL
 // ============================================================
@@ -1401,7 +1408,7 @@ async function exportToExcel() {
     XLSX.writeFile(wb, `AirCargo_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
     showToast(`${packages.length} paquetes exportados`, 'success');
 }
- 
+
 // ============================================================
 // UTILIDADES
 // ============================================================
@@ -1414,7 +1421,7 @@ function showToast(message, type='info') {
     document.body.appendChild(toast);
     setTimeout(() => { toast.style.transition='opacity 0.4s'; toast.style.opacity='0'; setTimeout(()=>toast.remove(), 400); }, 3500);
 }
- 
+
 document.addEventListener('keydown', (e) => {
     if (e.key==='Escape') {
         closeNewPackageModal(); closeQRModal(); closeAdminPanel();
@@ -1432,4 +1439,3 @@ document.addEventListener('click', (e) => {
 </script>
 </body>
 </html>
- 
